@@ -1,4 +1,4 @@
-FROM alpine:3.12.7
+FROM alpine:3.17
 
 # apk upgrade in a separate layer (musl is huge)
 RUN apk upgrade --no-cache --update
@@ -10,7 +10,9 @@ RUN apk add --no-cache --update tzdata pcre zlib libssl1.1
 ARG DEBUG_BUILD="1"
 ENV DO_DEBUG_BUILD="$DEBUG_BUILD"
 
-ENV NGINX_VERSION 1.20.1
+ENV NGINX_VERSION 1.23.3
+
+COPY ./src/. /usr/src/
 
 # nginx layer
 RUN CONFIG="\
@@ -51,19 +53,14 @@ RUN CONFIG="\
 	" \
 	&& addgroup -S nginx \
 	&& adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx nginx \
-	&& apk add --no-cache --update --virtual .build-deps gcc libc-dev make openssl-dev pcre-dev zlib-dev linux-headers patch curl git  \
- 	&& curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
-	&& git clone https://github.com/chobits/ngx_http_proxy_connect_module.git /usr/src/ngx_http_proxy_connect_module \
-	&& cd /usr/src/ngx_http_proxy_connect_module && export PROXY_CONNECT_MODULE_PATH="$(pwd)" && cd - \
-	&& CONFIG="$CONFIG --add-module=$PROXY_CONNECT_MODULE_PATH" \
-	&& mkdir -p /usr/src \
-	&& tar -zxC /usr/src -f nginx.tar.gz \
-	&& rm nginx.tar.gz \
+	&& apk add --no-cache --update --virtual .build-deps gcc libc-dev make openssl-dev pcre-dev zlib-dev linux-headers patch \
+	&& export PROXY_CONNECT_MODULE_PATH=/usr/src/ngx_http_proxy_connect_module-0.0.4 \
+	&& CONFIG="$CONFIG --add-dynamic-module=$PROXY_CONNECT_MODULE_PATH" \
+	&& ls -l /usr/src \
 	&& cd /usr/src/nginx-$NGINX_VERSION \
-	&& patch -p1 < $PROXY_CONNECT_MODULE_PATH/patch/proxy_connect_rewrite_101504.patch \
+	&& patch -p1 < $PROXY_CONNECT_MODULE_PATH/patch/proxy_connect_rewrite_102101.patch \
 	&& [ "a$DO_DEBUG_BUILD" == "a1" ] && { echo "Bulding DEBUG" &&  ./configure $CONFIG --with-debug && make -j$(getconf _NPROCESSORS_ONLN) && mv objs/nginx objs/nginx-debug ; } || { echo "Not building debug"; } \
 	&& { echo "Bulding RELEASE" && ./configure $CONFIG  && make -j$(getconf _NPROCESSORS_ONLN) && make install; } \
-	&& ls -laR objs/addon/ngx_http_proxy_connect_module/ \
 	&& rm -rf /etc/nginx/html/ \
 	&& mkdir /etc/nginx/conf.d/ \
 	&& mkdir -p /usr/share/nginx/html/ \
@@ -76,7 +73,7 @@ RUN CONFIG="\
 	&& rm -rf /usr/src/nginx-$NGINX_VERSION \
 	\
 	# Remove -dev apks and sources
-	&& apk del .build-deps gcc libc-dev make openssl-dev pcre-dev zlib-dev linux-headers patch curl git && rm -rf /usr/src \
+	&& apk del .build-deps gcc libc-dev make openssl-dev pcre-dev zlib-dev linux-headers patch && rm -rf /usr/src \
 	\
 	# forward request and error logs to docker log collector
 	&& ln -sf /dev/stdout /var/log/nginx/access.log \
