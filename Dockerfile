@@ -1,16 +1,16 @@
-FROM alpine:3.17
+FROM alpine:3.19
 
 # apk upgrade in a separate layer (musl is huge)
 RUN apk upgrade --no-cache --update
 
 # Bring in tzdata and runtime libs into their own layer
-RUN apk add --no-cache --update tzdata pcre zlib libssl1.1
+RUN apk add --no-cache --update tzdata pcre zlib libssl3
 
 # If set to 1, enables building debug version of nginx, which is super-useful, but also heavy to build.
 ARG DEBUG_BUILD="1"
 ENV DO_DEBUG_BUILD="$DEBUG_BUILD"
 
-ENV NGINX_VERSION 1.23.3
+ENV NGINX_VERSION 1.24.0
 
 COPY ./src/. /usr/src/
 
@@ -54,7 +54,7 @@ RUN CONFIG="\
 	&& addgroup -S nginx \
 	&& adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx nginx \
 	&& apk add --no-cache --update --virtual .build-deps gcc libc-dev make openssl-dev pcre-dev zlib-dev linux-headers patch \
-	&& export PROXY_CONNECT_MODULE_PATH=/usr/src/ngx_http_proxy_connect_module-0.0.4 \
+	&& export PROXY_CONNECT_MODULE_PATH=/usr/src/ngx_http_proxy_connect_module-0.0.5 \
 	&& CONFIG="$CONFIG --add-dynamic-module=$PROXY_CONNECT_MODULE_PATH" \
 	&& ls -l /usr/src \
 	&& cd /usr/src/nginx-$NGINX_VERSION \
