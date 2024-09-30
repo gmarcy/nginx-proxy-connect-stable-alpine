@@ -1,4 +1,4 @@
-FROM alpine:3.19
+FROM ghcr.io/linuxcontainers/alpine:latest
 
 # apk upgrade in a separate layer (musl is huge)
 RUN apk upgrade --no-cache --update
@@ -10,9 +10,17 @@ RUN apk add --no-cache --update tzdata pcre zlib libssl3
 ARG DEBUG_BUILD="1"
 ENV DO_DEBUG_BUILD="$DEBUG_BUILD"
 
-ENV NGINX_VERSION 1.24.0
+ENV NGINX_VERSION 1.27.1
+ENV MODULE_VERSION 0.0.7
 
-COPY ./src/. /usr/src/
+RUN set -x && \
+    mkdir -p /usr/src && \
+    wget https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && \
+    wget https://github.com/chobits/ngx_http_proxy_connect_module/archive/refs/tags/v${MODULE_VERSION}.tar.gz && \
+    tar -zxf ./nginx-${NGINX_VERSION}.tar.gz -C /usr/src && \
+    tar -zxf ./v${MODULE_VERSION}.tar.gz -C /usr/src && \
+    rm -f ./nginx-${NGINX_VERSION}.tar.gz ./v${MODULE_VERSION}.tar.gz && \
+    ls -l /usr/src
 
 # nginx layer
 RUN CONFIG="\
@@ -54,7 +62,7 @@ RUN CONFIG="\
 	&& addgroup -S nginx \
 	&& adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx nginx \
 	&& apk add --no-cache --update --virtual .build-deps gcc libc-dev make openssl-dev pcre-dev zlib-dev linux-headers patch \
-	&& export PROXY_CONNECT_MODULE_PATH=/usr/src/ngx_http_proxy_connect_module-0.0.5 \
+	&& export PROXY_CONNECT_MODULE_PATH=/usr/src/ngx_http_proxy_connect_module-${MODULE_VERSION} \
 	&& CONFIG="$CONFIG --add-dynamic-module=$PROXY_CONNECT_MODULE_PATH" \
 	&& ls -l /usr/src \
 	&& cd /usr/src/nginx-$NGINX_VERSION \
